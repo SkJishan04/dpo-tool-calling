@@ -24,7 +24,7 @@ wheels/
 *.egg
 
 # Models and Data
-models/
+# models/
 data/raw/
 *.bin
 *.safetensors
