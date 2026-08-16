@@ -23,16 +23,19 @@ wheels/
 .installed.cfg
 *.egg
 
-# Models and Data
-# models/
-data/raw/
-*.bin
-*.safetensors
-*.pt
+# Models and Data (but keep directory structure)
+models/*.bin
+models/*.safetensors
+models/*.pt
+!models/.gitkeep
 
-# Logs
-logs/
+data/raw/*.jsonl
+data/raw/*.json
+!data/raw/.gitkeep
+
 *.log
+logs/
+!logs/.gitkeep
 
 # IDE
 .vscode/
