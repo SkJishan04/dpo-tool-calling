@@ -26,9 +26,10 @@ class ToolCallingMetrics:
 
     @staticmethod
     def tool_precision(predictions: List[Dict], references: List[Dict]) -> float:
-        """
-        Tool precision - correct tool calls / total predicted tool calls.
-        """
+        """Tool precision - correct tool calls / total predicted tool calls."""
+        if not predictions or not references:
+            return 0.0
+        
         correct = 0
         predicted_tools = 0
 
@@ -41,13 +42,18 @@ class ToolCallingMetrics:
                 if pred_tool == ref_tool:
                     correct += 1
 
-        return (correct / predicted_tools * 100) if predicted_tools > 0 else 0.0
+        # FIX: Proper zero-division handling
+        if predicted_tools == 0:
+            return 0.0
+        return (correct / predicted_tools) * 100
+
 
     @staticmethod
     def tool_recall(predictions: List[Dict], references: List[Dict]) -> float:
-        """
-        Tool recall - correct tool calls / total actual tool calls.
-        """
+        """Tool recall - correct tool calls / total actual tool calls."""
+        if not predictions or not references:
+            return 0.0
+        
         correct = 0
         actual_tools = 0
 
@@ -60,8 +66,12 @@ class ToolCallingMetrics:
                 if pred_tool == ref_tool:
                     correct += 1
 
-        return (correct / actual_tools * 100) if actual_tools > 0 else 0.0
-
+        # FIX: Proper zero-division handling
+        if actual_tools == 0:
+            return 0.0
+        return (correct / actual_tools) * 100
+        
+    
     @staticmethod
     def parameter_accuracy(predictions: List[Dict], references: List[Dict]) -> float:
         """
