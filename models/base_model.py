@@ -21,12 +21,32 @@ class BaseToolCallingModel:
         self.device = device
         
         # Load tokenizer and base model
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            torch_dtype=torch.bfloat16,
-            device_map=device
-        )
+        try:
+            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+            
+            # FIX: Set padding token (CRITICAL for batch processing)
+            if self.tokenizer.pad_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+            
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                torch_dtype=torch.bfloat16,
+                device_map=device
+            )
+        except RuntimeError as e:
+            # Fallback to float32 if bfloat16 not supported
+            if "bfloat16" in str(e):
+                print(f"bfloat16 not supported, using float32")
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    model_name,
+                    torch_dtype=torch.float32,
+                    device_map=device
+                )
+            else:
+                raise
+        except Exception as e:
+            print(f"Error loading model {model_name}: {str(e)}")
+            raise
         
         # Apply LoRA if config provided
         if lora_config:
