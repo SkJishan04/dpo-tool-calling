@@ -67,15 +67,28 @@ class BaseToolCallingModel:
 
     def generate(self, prompt: str, max_length: int = 512, **kwargs) -> str:
         """Generate text from prompt."""
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        outputs = self.model.generate(
-            **inputs,
-            max_length=max_length,
-            temperature=0.7,
-            top_p=0.9,
-            **kwargs
-        )
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        try:
+            # FIX: Add padding to inputs
+            inputs = self.tokenizer(
+                prompt, 
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=max_length
+            ).to(self.device)
+            
+            outputs = self.model.generate(
+                **inputs,
+                max_length=max_length,
+                temperature=0.7,
+                top_p=0.9,
+                pad_token_id=self.tokenizer.pad_token_id,  # FIX: Set pad_token_id
+                **kwargs
+            )
+            return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+        except Exception as e:
+            print(f"Error during generation: {str(e)}")
+            raise
 
     def forward(self, input_ids, attention_mask=None):
         """Forward pass."""
