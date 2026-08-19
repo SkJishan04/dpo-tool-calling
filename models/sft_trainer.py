@@ -122,7 +122,12 @@ class SFTTrainer:
     def _validate(self) -> float:
         """Validate on validation set."""
         self.model.model.eval()
-        val_loader = DataLoader(self.val_dataset, batch_size=self.batch_size)
+        val_loader = DataLoader(
+            self.val_dataset, 
+            batch_size=self.batch_size,
+            num_workers=0,  # FIX: Required for Colab compatibility
+            pin_memory=True
+        )
         total_loss = 0
 
         with torch.no_grad():
