@@ -46,10 +46,11 @@ class SFTTrainer:
 
         # Setup optimizer and scheduler
         self.optimizer = AdamW(model.model.parameters(), lr=learning_rate)
-        self.total_steps = len(train_dataset) * num_epochs // batch_size
+        # FIX: Ensure total_steps is at least 1
+        self.total_steps = max(1, len(train_dataset) * num_epochs // batch_size)
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer,
-            num_warmup_steps=warmup_steps,
+            num_warmup_steps=min(warmup_steps, self.total_steps // 10),  # Warmup can't exceed total steps
             num_training_steps=self.total_steps
         )
 
