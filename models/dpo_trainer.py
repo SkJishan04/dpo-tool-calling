@@ -78,7 +78,9 @@ class DPOTrainer:
         train_loader = DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
-            shuffle=True
+            shuffle=True,
+            num_workers=0,  # FIX: Required for Colab compatibility
+            pin_memory=True
         )
 
         best_loss = float('inf')
