@@ -41,9 +41,17 @@ class PreferenceDataset(Dataset):
         """Get a preference pair and tokenize."""
         pair = self.pairs[idx]
         
-        prompt = pair['prompt']
-        chosen = pair['chosen']
-        rejected = pair['rejected']
+        # FIX: Safe access with validation
+        prompt = pair.get('prompt', '')
+        chosen = pair.get('chosen', '')
+        rejected = pair.get('rejected', '')
+        
+        # Validate required fields
+        if not all([prompt, chosen, rejected]):
+            raise ValueError(
+                f"Pair {idx} missing required fields. "
+                f"Got keys: {list(pair.keys())}"
+            )
 
         # Tokenize prompt + chosen
         chosen_text = f"{prompt}\n{chosen}"
