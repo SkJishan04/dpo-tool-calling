@@ -74,9 +74,9 @@ class PreferenceDataset(Dataset):
         )
 
         return {
-            "chosen_input_ids": chosen_encodings["input_ids"].squeeze(),
-            "chosen_attention_mask": chosen_encodings["attention_mask"].squeeze(),
-            "rejected_input_ids": rejected_encodings["input_ids"].squeeze(),
-            "rejected_attention_mask": rejected_encodings["attention_mask"].squeeze(),
+            "chosen_input_ids": chosen_encodings["input_ids"].squeeze(0),  # FIX: Only squeeze first dim
+            "chosen_attention_mask": chosen_encodings["attention_mask"].squeeze(0),
+            "rejected_input_ids": rejected_encodings["input_ids"].squeeze(0),
+            "rejected_attention_mask": rejected_encodings["attention_mask"].squeeze(0),
             "metadata": pair.get('metadata', {})
         }
