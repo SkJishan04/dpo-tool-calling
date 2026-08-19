@@ -25,6 +25,9 @@ class DatasetGenerator:
 
     def generate_tool_call_prompts(self, num_samples: int = 100) -> List[PreferencePair]:
         """Generate prompts that should trigger tool calls."""
+        if not self.tools:
+            raise ValueError("No tools available in registry")
+        
         pairs = []
         
         tool_prompts = [
@@ -39,7 +42,11 @@ class DatasetGenerator:
         ]
 
         for prompt, tool_name, params in tool_prompts * (num_samples // len(tool_prompts) + 1):
-            # Chosen: Correct tool call
+            # FIX: Validate tool exists
+            if tool_name not in self.tools:
+                print(f"Warning: Tool '{tool_name}' not in registry, skipping")
+                continue
+                
             chosen = ToolCallJson(
                 should_call_tool=True,
                 tool_name=tool_name,
@@ -47,8 +54,7 @@ class DatasetGenerator:
                 reasoning=f"This query requires real-time data from {tool_name}."
             ).model_dump_json()
 
-            # Rejected: Hallucinated tool call (wrong params)
-            bad_params = {list(params.keys())[0]: "INVALID_VALUE"}
+            bad_params = {list(params.keys())[0]: "INVALID_VALUE"} if params else {}
             rejected = ToolCallJson(
                 should_call_tool=True,
                 tool_name=tool_name,
