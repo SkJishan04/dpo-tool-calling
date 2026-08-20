@@ -512,3 +512,173 @@ for prompt in prompts:
 ```
 
 ---
+
+## Detailed Setup
+
+### Prerequisites
+
+#### System Requirements
+- **GPU**: 8GB+ VRAM (T4, RTX 3060+, A100)
+- **RAM**: 16GB minimum
+- **Storage**: 50GB for models and datasets
+- **Python**: 3.10+
+
+#### Tested Configurations
+✅ Google Colab (T4, 16GB VRAM)  
+✅ NVIDIA RTX 3060 (12GB VRAM)  
+✅ NVIDIA RTX 4090 (24GB VRAM)  
+✅ AWS SageMaker (ml.g4dn.xlarge)  
+
+#### CUDA & cuDNN
+```bash
+# Check NVIDIA setup
+nvidia-smi  # Should show GPU info
+nvcc --version  # Should show CUDA 11.8+
+
+# On Linux (Ubuntu):
+sudo apt-get install cuda-11-8 cudnn8
+
+# On macOS (Apple Silicon):
+# Use CPU-only mode or conda: conda install pytorch::pytorch torchvision torchaudio -c pytorch
+```
+
+### Installation Steps
+
+#### Step 1: Clone Repository
+```bash
+git clone https://github.com/YOUR-USERNAME/dpo-tool-calling.git
+cd dpo-tool-calling
+```
+
+#### Step 2: Create Virtual Environment
+```bash
+# Using venv
+python3.10 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# OR
+venv\Scripts\activate  # Windows
+
+# OR using conda
+conda create -n dpo python=3.10
+conda activate dpo
+```
+
+#### Step 3: Install Dependencies
+```bash
+# Base dependencies
+pip install -r requirements.txt
+
+# Or install individually for development
+pip install torch==2.1.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install transformers==4.36.0 peft==0.7.0 trl==0.7.4
+pip install datasets pandas numpy scikit-learn
+pip install pydantic pyyaml wandb tqdm python-dotenv
+
+# For development
+pip install pytest black flake8 mypy
+
+# For Jupyter notebooks
+pip install jupyter ipython
+```
+
+#### Step 4: Download Models
+```bash
+# Models auto-download from HuggingFace Hub on first use
+# To pre-download:
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model_id = "meta-llama/Llama-2-7b-hf"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(model_id, device_map="auto")
+
+# Download takes ~15 GB space and ~5 minutes
+```
+
+#### Step 5: Verify Installation
+```bash
+# Test imports
+python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+python -c "import transformers; print(f'Transformers: {transformers.__version__}')"
+python -c "from peft import get_peft_model; print('✓ PEFT installed')"
+python -c "from trl import DPOTrainer; print('✓ TRL installed')"
+
+# Test GPU
+python -c "import torch; print(f'GPU available: {torch.cuda.is_available()}'); print(f'GPU: {torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}')"
+```
+
+### Configuration
+
+#### config/config.yaml
+```yaml
+# Model Configuration
+model:
+  base_model: "meta-llama/Llama-2-7b-hf"
+  model_type: "llama"
+  device: "cuda"
+  dtype: "bfloat16"
+
+# LoRA Configuration
+lora:
+  r: 16                           # LoRA rank
+  lora_alpha: 32                   # LoRA alpha
+  lora_dropout: 0.1                # Dropout
+  bias: "none"
+  task_type: "CAUSAL_LM"
+  target_modules:
+    - "q_proj"
+    - "v_proj"
+
+# Training Configuration
+training:
+  output_dir: "./models/sft_checkpoint"
+  num_train_epochs: 1
+  per_device_train_batch_size: 4   # Adjust for your GPU
+  per_device_eval_batch_size: 4
+  gradient_accumulation_steps: 2
+  learning_rate: 5.0e-5
+  warmup_steps: 50
+  max_grad_norm: 1.0
+  weight_decay: 0.01
+  logging_steps: 10
+  eval_steps: 100
+  save_steps: 500
+  bf16: true                       # Use bfloat16 if available
+
+# DPO Configuration
+dpo:
+  beta: 0.1                        # DPO temperature
+  loss_type: "sigmoid"             # sigmoid or hinge
+
+# Dataset Configuration
+dataset:
+  name: "tool_calling_preference_dataset"
+  max_length: 512
+  num_samples: 2000
+
+# Logging
+logging:
+  level: "INFO"
+  use_wandb: true
+  wandb_project: "dpo-tool-calling"
+```
+
+### Environment Variables
+
+Create `.env` file:
+```bash
+# Model access (optional, for private models)
+HF_TOKEN=hf_xxxxxxxxxxxx
+
+# Weights & Biases (optional, for experiment tracking)
+WANDB_API_KEY=xxxxxxxxxx
+
+# GPU settings
+CUDA_DEVICE_ORDER=PCI_BUS_ID
+CUDA_VISIBLE_DEVICES=0  # Use GPU 0
+
+# Optimization
+TOKENIZERS_PARALLELISM=false
+```
+
+---
+
