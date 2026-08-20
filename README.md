@@ -112,3 +112,116 @@ LoRA achieves **99.22% parameter reduction**:
 - ✅ **~20MB adapter files** instead of 13GB models
 
 ---
+
+## Key Features
+
+### 🎯 Core Capabilities
+
+#### 1. Intelligent Tool Decision Making
+
+```
+prompt: "What is the weather in Paris?"
+├─ Should call tool? YES
+├─ Tool: weather
+├─ Parameters: {"location": "Paris", "units": "celsius"}
+└─ Generated schema: ✅ Valid JSON
+
+prompt: "Explain photosynthesis"
+├─ Should call tool? NO
+├─ Reasoning: "Knowledge-based, can be answered from training"
+└─ Direct answer: "Photosynthesis is the process by which plants..."
+```
+
+
+#### 2. Preference Learning
+- Generate "chosen" (correct) and "rejected" (incorrect) outputs
+- Train model to prefer chosen outputs via DPO loss
+- No reward model needed
+
+#### 3. Parameter Efficient Training
+- LoRA adapters with r=16, α=32
+- Only 0.78% of parameters trainable
+- Maintains 99%+ of performance vs full fine-tuning
+
+#### 4. Comprehensive Evaluation
+- Schema accuracy validation
+- Tool call precision & recall
+- Parameter matching accuracy
+- Benchmarking against baselines
+
+### 🚀 Advanced Features
+
+- **Gradient Accumulation**: Train larger effective batch sizes on limited VRAM
+- **Mixed Precision Training**: bfloat16 for faster computation
+- **Warm-up Scheduling**: Stable learning rate ramp-up
+- **Safe Dictionary Access**: Robust error handling
+- **Colab T4 Compatible**: Zero-config training on free GPU
+- **Reproducible Results**: Seed management and logging
+
+---
+
+## Workflow & Pipeline
+
+```mermaid
+flowchart TD
+    A["📊 Dataset Generation"] --> B["📝 Preference Pairs"]
+    B --> C["💾 JSONL Dataset<br/>2000 samples"]
+    C --> D["🔄 Data Validation"]
+    D --> E["✅ Dataset Ready"]
+    E --> F["📈 SFT Training"]
+    F --> G["🎯 SFT Checkpoint<br/>88.5% schema accuracy"]
+    G --> H["🔁 DPO Training"]
+    H --> I["🎯 DPO Checkpoint<br/>94.1% schema accuracy"]
+    I --> J["📊 Evaluation"]
+    J --> K["📈 Benchmarking"]
+    K --> L["🏆 Results & Metrics"]
+```
+
+### Phase 1: Data Generation
+```python
+dataset = DatasetGenerator()
+pairs = dataset.generate_full_dataset(
+    num_tool_calls=1000,      # Prompts requiring tool use
+    num_direct_answers=1000   # Prompts needing text response
+)
+```
+**Output:** 2000 preference pairs with chosen/rejected responses
+
+### Phase 2: SFT Training (Supervised Fine-Tuning)
+```python
+trainer = SFTTrainer(
+    model=model_with_lora,
+    train_dataset=preference_dataset,
+    num_epochs=1,
+    batch_size=4,
+    learning_rate=5e-5
+)
+results = trainer.train()  # ~50 minutes on T4 GPU
+```
+**Output:** Model learns basic tool-calling patterns
+
+### Phase 3: DPO Training (Direct Preference Optimization)
+```python
+trainer = DPOTrainer(
+    model=sft_checkpoint,
+    train_dataset=preference_dataset,
+    beta=0.1,  # Temperature parameter
+    num_epochs=1
+)
+results = trainer.train()  # ~50 minutes on T4 GPU
+```
+**Output:** Model learns to prefer correct tool calls and schemas
+
+### Phase 4: Evaluation & Benchmarking
+```python
+metrics = evaluate_model(
+    model=dpo_checkpoint,
+    test_prompts=200
+)
+print(f"Schema Accuracy: {metrics['schema_accuracy']:.1f}%")
+print(f"Tool Precision: {metrics['tool_precision']:.1f}%")
+print(f"Tool Recall: {metrics['tool_recall']:.1f}%")
+```
+
+---
+
