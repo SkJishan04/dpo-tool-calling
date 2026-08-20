@@ -682,3 +682,195 @@ TOKENIZERS_PARALLELISM=false
 
 ---
 
+## Usage Examples
+
+### Example 1: Generate Preference Dataset
+
+```python
+from data.dataset_generator import DatasetGenerator
+
+# Initialize generator
+generator = DatasetGenerator()
+
+# Generate preference pairs
+dataset = generator.generate_full_dataset(
+    num_tool_calls=1000,       # Prompts requiring tools
+    num_direct_answers=1000    # Prompts needing text
+)
+
+print(f"Generated {len(dataset)} preference pairs")
+
+# Save to file
+generator.save_to_jsonl("data/raw/preference_dataset.jsonl")
+
+# Inspect sample
+sample = dataset[0]
+print(f"Prompt: {sample.prompt}")
+print(f"Chosen: {sample.chosen[:100]}...")
+print(f"Rejected: {sample.rejected[:100]}...")
+```
+
+### Example 2: Train SFT Model
+
+```python
+from transformers import AutoTokenizer
+from data.preference_dataset import PreferenceDataset
+from models.base_model import BaseToolCallingModel
+from models.sft_trainer import SFTTrainer
+
+# Load tokenizer and create dataset
+tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-hf")
+dataset = PreferenceDataset("data/raw/preference_dataset.jsonl", tokenizer)
+
+# Initialize model with LoRA
+lora_config = {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.1,
+    "target_modules": ["q_proj", "v_proj"]
+}
+model = BaseToolCallingModel("meta-llama/Llama-2-7b-hf", lora_config=lora_config)
+
+# Create trainer
+trainer = SFTTrainer(
+    model=model,
+    train_dataset=dataset,
+    learning_rate=5e-5,
+    num_epochs=1,
+    batch_size=4,
+    gradient_accumulation_steps=2,
+    output_dir="models/sft_checkpoint"
+)
+
+# Train
+results = trainer.train()
+print(f"Best loss: {results['best_loss']:.4f}")
+```
+
+### Example 3: Train DPO Model
+
+```python
+from models.dpo_trainer import DPOTrainer
+
+# Load SFT checkpoint
+model = BaseToolCallingModel("models/sft_checkpoint")
+dataset = PreferenceDataset("data/raw/preference_dataset.jsonl", tokenizer)
+
+# Create DPO trainer
+trainer = DPOTrainer(
+    model=model,
+    train_dataset=dataset,
+    beta=0.1,
+    loss_type="sigmoid",
+    num_epochs=1,
+    batch_size=4,
+    output_dir="models/dpo_checkpoint"
+)
+
+# Train
+results = trainer.train()
+print(f"Best DPO loss: {results['best_loss']:.4f}")
+```
+
+### Example 4: Inference & Tool Calling
+
+```python
+from models.base_model import BaseToolCallingModel
+from evaluation.schema_validator import SchemaValidator
+import json
+
+# Load trained model
+model = BaseToolCallingModel("models/dpo_checkpoint")
+
+# Test prompts
+test_cases = [
+    "What is the weather in Paris?",
+    "Explain photosynthesis",
+    "Calculate 2**100",
+    "Search for machine learning tutorials"
+]
+
+for prompt in test_cases:
+    print(f"\n📝 Prompt: {prompt}")
+    
+    # Generate response
+    output = model.generate(prompt, max_length=256)
+    
+    # Validate output
+    validation = SchemaValidator.full_validation(output)
+    
+    # Parse response
+    if validation['json_valid'] and validation['parsed_data']:
+        data = validation['parsed_data']
+        print(f"✓ Valid JSON: {validation['json_valid']}")
+        print(f"✓ Should call tool: {data.get('should_call_tool', False)}")
+        
+        if data.get('should_call_tool'):
+            print(f"  Tool: {data.get('tool_name')}")
+            print(f"  Parameters: {data.get('parameters')}")
+        else:
+            print(f"  Answer: {data.get('answer', '')[:100]}...")
+    else:
+        print(f"✗ Invalid output: {validation['errors']}")
+```
+
+### Example 5: Batch Evaluation
+
+```python
+from evaluation.benchmark import BenchmarkRunner
+from data.dataset_generator import DatasetGenerator
+
+# Generate test dataset
+generator = DatasetGenerator()
+test_pairs = generator.generate_full_dataset(
+    num_tool_calls=100,
+    num_direct_answers=100
+)
+
+# Load models
+baseline_model = BaseToolCallingModel("meta-llama/Llama-2-7b-hf")
+sft_model = BaseToolCallingModel("models/sft_checkpoint")
+dpo_model = BaseToolCallingModel("models/dpo_checkpoint")
+
+# Run benchmarks
+benchmark = BenchmarkRunner(
+    test_prompts=[p.prompt for p in test_pairs],
+    references=[{"tool_name": p.metadata.get("tool")} for p in test_pairs]
+)
+
+models = {
+    "Baseline": baseline_model,
+    "SFT Only": sft_model,
+    "SFT + DPO": dpo_model
+}
+
+results = benchmark.compare_models(models, num_runs=200)
+BenchmarkRunner.print_benchmark_table(results)
+```
+
+### Example 6: Custom Tool Integration
+
+```python
+from config.schema_definitions import ToolSchema, ParameterSchema, TOOL_REGISTRY
+
+# Define custom tool
+custom_tool = ToolSchema(
+    name="email",
+    description="Send email to a recipient",
+    category="communication",
+    parameters=[
+        ParameterSchema(name="recipient", type="string", description="Email address"),
+        ParameterSchema(name="subject", type="string", description="Email subject"),
+        ParameterSchema(name="body", type="string", description="Email body"),
+    ],
+    required_params=["recipient", "subject"]
+)
+
+# Add to registry
+TOOL_REGISTRY["email"] = custom_tool
+
+# Now model can learn to call this tool
+```
+
+---
+
