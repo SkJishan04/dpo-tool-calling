@@ -1644,11 +1644,11 @@ Inspired by:
 
 ## Contact & Support
 
-- 📧 **Email**: your.email@example.com
-- 💬 **Issues**: [GitHub Issues](https://github.com/YOUR-USERNAME/dpo-tool-calling/issues)
-- 💡 **Discussions**: [GitHub Discussions](https://github.com/YOUR-USERNAME/dpo-tool-calling/discussions)
-- 🐦 **Twitter**: [@yourhandle](https://twitter.com/yourhandle)
-- 🔗 **LinkedIn**: [Your Profile](https://linkedin.com/in/yourprofile)
+- 📧 **Email**: skjishan28012004@gmail.com
+- 💬 **Issues**: [GitHub Issues](https://github.com/SkJishan04/dpo-tool-calling/issues)
+- 💡 **Discussions**: [GitHub Discussions](https://github.com/SkJishan04/dpo-tool-calling/discussions)
+<!-- - 🐦 **Twitter**: [@yourhandle](https://twitter.com/yourhandle) -->
+- 🔗 **LinkedIn**: [Your Profile](https://www.linkedin.com/in/sk-jishan/)
 
 ---
 
