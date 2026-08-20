@@ -365,3 +365,150 @@ y_l: "rejected" (dispreferred) completion
 - **Hugging Face Hub**: Model hosting, inference API
 
 ---
+
+## Project Structure
+
+```
+dpo-tool-calling/
+├── 📁 config/
+│ ├── config.yaml # Training configuration
+│ ├── schema_definitions.py # Tool and schema definitions
+│ └── init.py
+│
+├── 📁 data/
+│ ├── dataset_generator.py # Generate preference pairs
+│ ├── preference_dataset.py # PyTorch Dataset loader
+│ ├── raw/
+│ │ └── .gitkeep # Placeholder for JSONL data
+│ └── init.py
+│
+├── 📁 models/
+│ ├── base_model.py # Base model wrapper with LoRA
+│ ├── sft_trainer.py # SFT training logic
+│ ├── dpo_trainer.py # DPO training logic
+│ ├── .gitkeep # Placeholder for checkpoints
+│ └── init.py
+│
+├── 📁 evaluation/
+│ ├── metrics.py # Accuracy, precision, recall
+│ ├── schema_validator.py # JSON schema validation
+│ ├── benchmark.py # Model comparison
+│ └── init.py
+│
+├── 📁 utils/
+│ ├── logger.py # Logging configuration
+│ ├── json_parser.py # JSON parsing utilities
+│ ├── error_handler.py # Error handling decorators
+│ └── init.py
+│
+├── 📁 scripts/
+│ ├── 01_generate_dataset.py # Generate preference dataset
+│ ├── 02_train_sft.py # Run SFT training
+│ ├── 03_train_dpo.py # Run DPO training
+│ ├── 04_evaluate.py # Evaluate models
+│ ├── 06_inference_demo.py # Run inference examples
+│ └── init.py
+│
+├── 📁 tests/
+│ ├── test_metrics.py # Test metric calculations
+│ ├── test_schema_validator.py # Test schema validation
+│ ├── test_json_parser.py # Test JSON parsing
+│ └── init.py
+│
+├── 📁 .github/workflows/
+│ └── ci.yml # GitHub Actions CI/CD
+│
+├── 📄 README.md # This file
+├── 📄 requirements.txt # Python dependencies
+├── 📄 setup.py # Package setup
+├── 📄 Dockerfile # Docker configuration
+├── 📄 .gitignore # Git ignore rules
+├── 📄 LICENSE # MIT License
+└── 📄 COMMIT_MESSAGES.md # All commit messages
+
+Key Files:
+
+config/schema_definitions.py: Define custom tools and their schemas
+scripts/02_train_sft.py: Entry point for SFT training
+scripts/03_train_dpo.py: Entry point for DPO training
+models/sft_trainer.py: Core SFT training loop
+models/dpo_trainer.py: Core DPO training loop
+```
+
+
+---
+
+## Quick Start
+
+### 🚀 In 5 Minutes (Google Colab)
+
+```bash
+# 1. Clone repository
+!git clone https://github.com/YOUR-USERNAME/dpo-tool-calling.git
+%cd dpo-tool-calling
+
+# 2. Install dependencies
+!pip install -q -r requirements.txt
+
+# 3. Generate dataset
+!python scripts/01_generate_dataset.py --num-tool-calls 500 --num-direct-answers 500
+
+# 4. Train SFT
+!python scripts/02_train_sft.py --model meta-llama/Llama-2-7b-hf --epochs 1 --batch-size 4
+
+# 5. Train DPO
+!python scripts/03_train_dpo.py --sft-checkpoint models/sft_checkpoint --epochs 1 --batch-size 4
+
+# 6. Evaluate
+!python scripts/04_evaluate.py --model models/dpo_checkpoint
+
+# Total time: ~2 hours on T4 GPU ✅
+```
+
+### 💻 Local Setup (GPU Required)
+
+```bash
+# Clone & setup
+git clone https://github.com/YOUR-USERNAME/dpo-tool-calling.git
+cd dpo-tool-calling
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Generate dataset (2000 samples)
+python scripts/01_generate_dataset.py
+
+# Train SFT (1 epoch, ~50 min on RTX 3090)
+python scripts/02_train_sft.py --epochs 1 --batch-size 8
+
+# Train DPO (1 epoch, ~50 min)
+python scripts/03_train_dpo.py --epochs 1 --batch-size 8
+
+# Evaluate
+python scripts/04_evaluate.py --model models/dpo_checkpoint --num-samples 200
+
+# Total time: ~2-3 hours
+```
+
+### ⚡ Quick Inference
+
+```python
+from models.base_model import BaseToolCallingModel
+
+# Load trained model
+model = BaseToolCallingModel("models/dpo_checkpoint")
+
+# Make predictions
+prompts = [
+    "What is the weather in Paris?",
+    "Explain machine learning",
+    "Calculate 2**100"
+]
+
+for prompt in prompts:
+    output = model.generate(prompt, max_length=256)
+    print(f"Prompt: {prompt}")
+    print(f"Output: {output}\n")
+```
+
+---
