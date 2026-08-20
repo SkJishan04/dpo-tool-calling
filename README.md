@@ -225,3 +225,143 @@ print(f"Tool Recall: {metrics['tool_recall']:.1f}%")
 
 ---
 
+## Architecture
+
+### System Architecture
+
+```mermaid
+graph TB
+    subgraph "Data Layer"
+        DG["Dataset Generator"]
+        DS["Preference Dataset<br/>2000 pairs"]
+        DL["PyTorch DataLoader<br/>batch_size=4"]
+    end
+
+    subgraph "Model Layer"
+        TB["Tokenizer<br/>AutoTokenizer"]
+        BM["Base Model<br/>Llama-2-7B"]
+        LA["LoRA Adapter<br/>r=16, α=32"]
+        FW["Forward Pass<br/>Causal LM"]
+    end
+
+    subgraph "Training Layer"
+        SF["SFT Trainer<br/>Cross-entropy loss"]
+        DP["DPO Trainer<br/>Log-sigmoid loss"]
+        OPT["Optimizer<br/>AdamW"]
+        SCHED["Scheduler<br/>Linear Warmup"]
+    end
+
+    subgraph "Evaluation Layer"
+        VAL["Schema Validator<br/>JSON validation"]
+        METRICS["Metrics<br/>Precision/Recall"]
+        BENCH["Benchmarking<br/>Model comparison"]
+    end
+
+    subgraph "Tracking Layer"
+        WB["Weights & Biases<br/>Experiment logging"]
+    end
+
+    DG --> DS
+    DS --> DL
+    DL --> TB
+    DL --> BM
+    BM --> LA
+    LA --> FW
+    
+    FW --> SF
+    FW --> DP
+    SF --> OPT
+    DP --> OPT
+    OPT --> SCHED
+    
+    SF -.-> VAL
+    DP -.-> VAL
+    VAL --> METRICS
+    METRICS --> BENCH
+    
+    BENCH --> WB
+```
+
+### Model Architecture
+
+```mermaid
+flowchart LR
+    A["Input Prompt<br/>max 512 tokens"] --> B["Tokenization<br/>AutoTokenizer"]
+    B --> C["Llama-2-7B<br/>Language Model"]
+    C --> D["LoRA Adapter<br/>0.78% params"]
+    D --> E["Causal LM Head"]
+    E --> F["Logits<br/>Vocabulary size"]
+    F --> G{"Training Phase?"}
+    G -->|SFT| H["Cross-Entropy Loss<br/>Per token"]
+    G -->|DPO| I["Log-Sigmoid Loss<br/>Preference margin"]
+    H --> J["Backpropagation"]
+    I --> J
+    J --> K["AdamW Optimizer"]
+    K --> L["Update LoRA params<br/>0.78% of model"]
+    L --> M["Save Checkpoint"]
+```
+
+### Loss Functions
+
+#### SFT Loss (Token-level)
+
+L_SFT = -log P(y_t | y_<t, x)
+
+Where:
+
+y_t: target token at position t
+y_<t: previous tokens
+x: input prompt
+
+
+#### DPO Loss (Preference-based)
+
+L_DPO = -log σ(β · (log P(y_w|x) - log P(y_l|x)))
+
+Where:
+
+β: temperature parameter (0.1)
+σ: sigmoid function
+y_w: "chosen" (preferred) completion
+y_l: "rejected" (dispreferred) completion
+
+
+---
+
+## Tech Stack
+
+### 🏗️ Core Framework
+- **PyTorch 2.1.0**: Deep learning framework, GPU acceleration, distributed training
+- **Hugging Face Transformers 4.36.0+**: Pre-trained LLM loading, tokenization, inference
+- **PEFT 0.7.0+**: LoRA implementation, parameter-efficient fine-tuning
+- **TRL 0.7.4+**: DPO training utilities, preference learning pipelines
+
+### 📊 Data & Processing
+- **Datasets 2.14.5+**: Data loading, preprocessing, streaming
+- **Pandas 2.1.1+**: Data analysis, manipulation, statistics
+- **NumPy 1.24.3+**: Numerical operations, array computing
+
+### 🎯 Evaluation & Metrics
+- **Scikit-learn 1.3.2+**: Precision, recall, accuracy calculations
+- **Custom Metrics**: Schema validation, tool-call analysis, parameter matching
+
+### ⚙️ Configuration & Validation
+- **Pydantic 2.5.0+**: Data validation, type checking, schema definition
+- **PyYAML 6.0.1+**: Configuration file management
+
+### 📈 Experiment Tracking
+- **Weights & Biases 0.15.12+**: Real-time metrics logging, model artifacts, experiment comparison
+
+### 🛠️ Utilities
+- **tqdm 4.66.1+**: Progress bars, training monitoring
+- **python-dotenv 1.0.0+**: Environment variable management
+
+### 🧪 Development & Testing
+- **pytest 7.4.3+**: Unit testing, test automation
+- **GitHub Actions**: CI/CD automation
+
+### 🖥️ Deployment
+- **Docker**: Containerization, reproducible environments
+- **Hugging Face Hub**: Model hosting, inference API
+
+---
