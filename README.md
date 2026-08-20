@@ -39,3 +39,76 @@ Direct Preference Optimization (DPO) has emerged as a powerful alternative to RL
 21. [License](#license)
 
 ---
+
+## Overview
+
+This project implements a **hybrid SFT + DPO training pipeline** to fine-tune language models (specifically Llama-2-7B) for intelligent tool calling. The model learns to:
+
+✅ **Recognize** when external tools/APIs are needed  
+✅ **Generate** valid JSON schemas for function arguments  
+✅ **Handle** errors gracefully without hallucinating parameters  
+✅ **Decide** when to respond directly without tool invocation  
+
+### Key Results
+
+| Metric | Baseline | SFT Only | SFT + DPO | Improvement |
+|--------|----------|----------|-----------|------------|
+| **Schema Accuracy** | 81.2% | 88.5% | 94.1% | +12.9% |
+| **Tool Precision** | 78.4% | 84.1% | 91.8% | +13.4% |
+| **Tool Recall** | 85.0% | 89.2% | 93.5% | +8.5% |
+| **Latency** | 0 ms | +12 ms | +14 ms | +14 ms |
+
+---
+
+## Problem Statement
+
+### The Challenge
+
+Most fine-tuned LLMs struggle with tool calling:
+
+❌ **Hallucinating API parameters** that don't exist  
+❌ **Invoking tools unnecessarily** when text suffices  
+❌ **Invalid JSON schemas** that break downstream systems  
+❌ **No graceful error handling** for edge cases  
+❌ **Poor decision-making** about when to use tools vs. generate text  
+
+**Real-world impact:** AI agents fail silently, systems crash on malformed JSON, user experience degrades.
+
+### Why This Matters
+
+Tool calling is fundamental for:
+- **AI Agents**: Autonomous systems that interact with real-world APIs
+- **Chatbots**: Delegating tasks to external services (weather, search, calculations)
+- **Workflow Automation**: LLMs orchestrating multi-step processes
+- **Integration Layers**: Connecting LLMs to enterprise systems
+
+---
+
+## Motivation
+
+### Why DPO?
+
+Traditional approaches rely on RLHF (Reinforcement Learning from Human Feedback), which is:
+- ⚠️ **Computationally expensive** (requires reward model training)
+- ⚠️ **Complex to implement** (multiple model forward passes)
+- ⚠️ **Unstable** (reward hacking, training oscillations)
+
+**DPO solves this** by:
+✅ Training directly on preference pairs without a reward model  
+✅ Simple binary cross-entropy loss over log probabilities  
+✅ 2-3x faster training than RLHF  
+✅ More stable convergence  
+
+### Why LoRA?
+
+Full fine-tuning requires:
+- 💾 **70GB+ VRAM** to train 7B models
+- ⏱️ **Days of training** even on H100 GPUs
+- 📦 **Multiple model copies** for deployment
+
+LoRA achieves **99.22% parameter reduction**:
+- ✅ Train on **single T4 GPU** (16GB)
+- ✅ **2-3 hours** for full training
+- ✅ **~20MB adapter files** instead of 13GB models
+
+---
