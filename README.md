@@ -1581,7 +1581,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ### Development Setup
 ```bash
-git clone https://github.com/YOUR-USERNAME/dpo-tool-calling.git
+git clone https://github.com/SkJishan04/dpo-tool-calling.git
 cd dpo-tool-calling
 python -m venv venv
 source venv/bin/activate
@@ -1600,11 +1600,11 @@ black . && flake8 .
 If you use this project in your research, please cite:
 
 ```bibtex
-@software{dpo_tool_calling_2024,
-  author = {Your Name},
+@software{dpo_tool_calling_2026,
+  author = {Sk Jishan},
   title = {DPO for Tool/Function Calling: Fine-tuning LLMs for Intelligent API Usage},
-  url = {https://github.com/YOUR-USERNAME/dpo-tool-calling},
-  year = {2024},
+  url = {https://github.com/SkJishan04/dpo-tool-calling},
+  year = {2026},
   note = {GitHub repository}
 }
 ```
