@@ -1338,3 +1338,337 @@ pytest tests/ -v --gpu
 
 ---
 
+## Limitations
+
+### Current Constraints
+
+#### 1. Model Size
+- **Current**: Llama-2-7B (7B parameters)
+- **Limitation**: Performance plateaus at model scale
+- **Impact**: Can't achieve >95% accuracy without larger models
+
+#### 2. Dataset Size
+- **Current**: 2000 preference pairs
+- **Limitation**: Limited diversity in tool-calling scenarios
+- **Impact**: May overfit on specific tool types
+
+#### 3. Tool Definition
+- **Current**: Pre-defined tools in schema_definitions.py
+- **Limitation**: Adding custom tools requires code changes
+- **Impact**: Not flexible for dynamic tool discovery
+
+#### 4. GPU Memory
+- **Current**: 16GB VRAM minimum (T4 GPU)
+- **Limitation**: Can't fit larger models without optimization
+- **Impact**: Excludes users with smaller GPUs
+
+#### 5. Training Speed
+- **Current**: ~2 hours per epoch on T4
+- **Limitation**: Slow iteration for experimentation
+- **Impact**: Expensive to run hyperparameter sweeps
+
+### Known Issues
+
+#### Tensor Shape Handling
+- Edge case: Single sample batches may cause squeeze() issues
+- Fix: Use `.squeeze(0)` instead of `.squeeze()`
+
+#### Dataloader Workers
+- Issue: Windows/Colab with `num_workers>0` causes hangs
+- Fix: Use `num_workers=0` for compatibility
+
+#### bfloat16 Support
+- Issue: Older GPUs don't support bfloat16
+- Fix: Fallback to float32 automatically
+
+---
+
+## Future Improvements
+
+### Short-term (Next 3 months)
+
+#### 1. Multi-Tool Orchestration
+
+Current: Single tool per prompt
+Future: Chain multiple tools
+"weather in Paris" → get_location → weather_api → format_response
+
+
+#### 2. Dynamic Tool Registry
+```python
+class DynamicToolRegistry:
+    def register_tool(self, tool_schema: ToolSchema):
+        """Register tool at runtime"""
+        self.tools[tool_schema.name] = tool_schema
+    
+    def auto_discover_tools(self, api_spec: str):
+        """Parse OpenAPI/GraphQL specs"""
+        return self.parse_spec(api_spec)
+```
+
+#### 3. Error Recovery
+```python
+# Learn from failed tool calls
+"Search failed: timeout" → model learns to retry or fallback
+"Invalid parameters" → model adjusts parameters
+```
+
+#### 4. Few-shot Learning
+```python
+# In-context examples improve performance
+prompt = """
+Example 1:
+Input: "Weather in Paris"
+Output: {"tool": "weather", "params": {"location": "Paris"}}
+
+Now: {user_prompt}
+"""
+```
+
+### Medium-term (3-6 months)
+
+#### 5. Support Larger Models
+- Llama-2-13B, 70B
+- Mixtral-8x7B (MoE)
+- OLMo, Qwen, etc.
+
+```bash
+python scripts/02_train_sft.py --model meta-llama/Llama-2-13b-hf
+```
+
+#### 6. Multi-GPU Training
+```python
+from accelerate import Accelerator
+
+accelerator = Accelerator()
+model, optimizer, train_loader = accelerator.prepare(
+    model, optimizer, train_loader
+)
+```
+
+#### 7. Reinforcement Learning from Tool Feedback
+Current: Preference learning from human-curated data
+Future: Learn from actual tool execution feedback
+
+Try to use tool
+If succeeds → positive reward
+If fails → negative reward (backprop)
+
+
+#### 8. Cost-Benefit Analysis
+```python
+class CostBenefitModel:
+    """Learn when tool calling is worth it"""
+    def should_call_tool(self, prompt, available_tools):
+        # Consider:
+        - Latency cost
+        - API call cost
+        - Accuracy improvement
+```
+
+### Long-term (6-12 months)
+
+#### 9. End-to-End Agent System
+
+Current: English only
+Future: Support 50+ languages
+
+Translate prompts
+Learn language-specific patterns
+Cross-lingual transfer
+
+
+#### 12. Continuous Learning
+```python
+class ContinuousLearner:
+    """Learn from user feedback in production"""
+    def user_corrected_tool_call(self, prompt, prediction, correction):
+        # Add to training buffer
+        # Fine-tune periodically
+        # Update model serving
+```
+
+---
+
+## Architecture Roadmap
+
+```mermaid
+graph TB
+    subgraph "Phase 1: Current"
+        A["Single Tool<br/>Per Prompt"]
+    end
+
+    subgraph "Phase 2: Multi-Tool"
+        B["Tool Chaining<br/>Sequential Execution"]
+        C["Dynamic Registry<br/>Runtime Tool Addition"]
+    end
+
+    subgraph "Phase 3: Agent System"
+        D["Multi-Turn<br/>Conversations"]
+        E["Memory<br/>System"]
+        F["Reasoning<br/>Engine"]
+    end
+
+    subgraph "Phase 4: Production"
+        G["Distilled Models<br/>1-3B"]
+        H["Multi-GPU<br/>Serving"]
+        I["Cost Optimization<br/>A/B Testing"]
+    end
+
+    A --> B
+    A --> C
+    B --> D
+    C --> E
+    D --> F
+    E --> G
+    F --> H
+    G --> I
+```
+
+---
+
+## Research Directions
+
+### 1. Constitutional AI for Tool Calling
+- Define principles for tool use
+- Fine-tune with principle adherence
+- Learn human values implicitly
+
+### 2. Causal Inference
+- Understand when tools actually improve accuracy
+- Learn causal relationships between prompts and tool success
+- Optimize tool selection
+
+### 3. Uncertainty Estimation
+"Weather in Paris" → 95% confident
+"Exotic species" → 30% confident → more likely to search
+
+
+### 4. Efficient Tool Selection
+
+"Write an email" →
+
+Calculator tool: not useful
+Email tool: useful
+Model learns not to waste time on irrelevant tools
+
+
+---
+
+## Comparison with Related Work
+
+| Method | Schema Accuracy | Training Time | Trainable Params | GPU Memory |
+|--------|-----------------|---------------|------------------|------------|
+| **Baseline (LLM)** | 81.2% | N/A | 100% | 24GB |
+| **RLHF** | 92.0% | 8 hours | 100% | 48GB |
+| **DPO (Ours)** | 94.1% | 2 hours | 0.78% | 16GB |
+| **Instruction Tuning** | 88.5% | 1 hour | 100% | 24GB |
+
+**Key Insight**: DPO achieves highest accuracy with minimal training and memory!
+
+---
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### How to Contribute
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -am 'feat: your feature'`
+4. Push to branch: `git push origin feature/your-feature`
+5. Submit Pull Request
+
+### Development Setup
+```bash
+git clone https://github.com/YOUR-USERNAME/dpo-tool-calling.git
+cd dpo-tool-calling
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install -e .  # Install in development mode
+
+# Run tests before submitting PR
+pytest tests/ -v
+black . && flake8 .
+```
+
+---
+
+## Citation
+
+If you use this project in your research, please cite:
+
+```bibtex
+@software{dpo_tool_calling_2024,
+  author = {Your Name},
+  title = {DPO for Tool/Function Calling: Fine-tuning LLMs for Intelligent API Usage},
+  url = {https://github.com/YOUR-USERNAME/dpo-tool-calling},
+  year = {2024},
+  note = {GitHub repository}
+}
+```
+
+### Related Papers
+- [Direct Preference Optimization (DPO)](https://arxiv.org/abs/2305.18290)
+- [LoRA: Low-Rank Adaptation](https://arxiv.org/abs/2106.09685)
+- [Tool Learning with LLMs](https://arxiv.org/abs/2307.16789)
+
+---
+
+## License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+
+### Key Terms
+- ✅ **Permitted**: Commercial use, modification, distribution, private use
+- ⚠️ **Required**: Include original license and copyright notice
+- ❌ **Prohibited**: Liability, warranty claims
+
+---
+
+## Acknowledgments
+
+Built with:
+- [Hugging Face Transformers](https://huggingface.co/transformers/)
+- [PEFT Library](https://github.com/huggingface/peft)
+- [TRL Library](https://github.com/huggingface/trl)
+- [PyTorch](https://pytorch.org/)
+
+Inspired by:
+- Direct Preference Optimization paper
+- Tool Use in LLMs research
+- Open-source ML community
+
+---
+
+## Contact & Support
+
+- 📧 **Email**: your.email@example.com
+- 💬 **Issues**: [GitHub Issues](https://github.com/YOUR-USERNAME/dpo-tool-calling/issues)
+- 💡 **Discussions**: [GitHub Discussions](https://github.com/YOUR-USERNAME/dpo-tool-calling/discussions)
+- 🐦 **Twitter**: [@yourhandle](https://twitter.com/yourhandle)
+- 🔗 **LinkedIn**: [Your Profile](https://linkedin.com/in/yourprofile)
+
+---
+
+## Changelog
+
+### v1.0.0 (2024-01-XX)
+- ✅ Initial release
+- ✅ SFT + DPO training pipeline
+- ✅ Comprehensive evaluation suite
+- ✅ Google Colab support
+- ✅ Docker containerization
+
+### Upcoming
+- 🔜 Multi-tool orchestration
+- 🔜 Larger model support
+- 🔜 Multi-GPU training
+- 🔜 Production API server
+
+---
+
+**Made with ❤️ for the open-source ML community**
+
+[⬆ back to top](#-dpo-for-toolfunction-calling)
