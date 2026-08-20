@@ -1053,3 +1053,288 @@ python scripts/04_evaluate.py \
 ```
 
 ---
+
+## Docker & Deployment
+
+### Dockerfile
+
+```dockerfile
+FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+
+WORKDIR /app
+
+# Install Python and dependencies
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3.10-dev \
+    python3-pip \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements
+COPY requirements.txt .
+
+# Install Python packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy project
+COPY . .
+
+# Set environment variables
+ENV TOKENIZERS_PARALLELISM=false
+ENV CUDA_VISIBLE_DEVICES=0
+
+# Expose port for API
+EXPOSE 8000
+
+# Default command: training
+CMD ["python", "scripts/02_train_sft.py"]
+```
+
+### Docker Usage
+
+```bash
+# Build image
+docker build -t dpo-tool-calling:latest .
+
+# Run training
+docker run --gpus all \
+    -v $(pwd)/models:/app/models \
+    -v $(pwd)/data:/app/data \
+    dpo-tool-calling:latest \
+    python scripts/02_train_sft.py --epochs 1
+
+# Run inference
+docker run --gpus all \
+    -v $(pwd)/models:/app/models \
+    dpo-tool-calling:latest \
+    python scripts/06_inference_demo.py
+
+# Interactive shell
+docker run --gpus all -it \
+    -v $(pwd):/app \
+    dpo-tool-calling:latest \
+    /bin/bash
+```
+
+### Docker Compose
+
+```yaml
+version: '3.8'
+
+services:
+  dpo-training:
+    build: .
+    image: dpo-tool-calling:latest
+    container_name: dpo-training
+    runtime: nvidia
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - TOKENIZERS_PARALLELISM=false
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./logs:/app/logs
+    command: python scripts/02_train_sft.py --epochs 1 --batch-size 4
+
+  dpo-evaluation:
+    build: .
+    image: dpo-tool-calling:latest
+    container_name: dpo-evaluation
+    runtime: nvidia
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+    depends_on:
+      - dpo-training
+    command: python scripts/04_evaluate.py --model models/dpo_checkpoint
+
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    container_name: tensorboard
+    volumes:
+      - ./logs:/logs
+    ports:
+      - "6006:6006"
+    command: tensorboard --logdir=/logs --host=0.0.0.0
+```
+
+---
+
+## CI/CD Pipeline
+
+### GitHub Actions Workflow
+
+`.github/workflows/ci.yml`:
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip packages
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov black flake8 mypy
+
+    - name: Lint with flake8
+      run: |
+        flake8 models/ data/ evaluation/ utils/ scripts/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Format check with black
+      run: black --check models/ data/ evaluation/ utils/ scripts/
+
+    - name: Type check with mypy
+      run: mypy models/ --ignore-missing-imports || true
+
+    - name: Run unit tests
+      run: pytest tests/ -v --cov=. --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: true
+
+    - name: Test imports
+      run: |
+        python -c "from models.base_model import BaseToolCallingModel; print('✓')"
+        python -c "from models.sft_trainer import SFTTrainer; print('✓')"
+        python -c "from models.dpo_trainer import DPOTrainer; print('✓')"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Build Docker image
+      run: docker build -t dpo-tool-calling:${{ github.sha }} .
+
+    - name: Test Docker image
+      run: docker run dpo-tool-calling:${{ github.sha }} python -c "import torch; print(f'✓ PyTorch {torch.__version__}')"
+
+  security:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        scan-type: 'fs'
+        scan-ref: '.'
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+
+    - name: Upload Trivy results to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+```
+
+---
+
+## Testing
+
+### Unit Tests
+
+`tests/test_metrics.py`:
+
+```python
+import pytest
+from evaluation.metrics import ToolCallingMetrics
+
+class TestMetrics:
+    def test_schema_accuracy(self):
+        predictions = [
+            {"tool_name": "search"},
+            {"tool_name": "weather"},
+        ]
+        references = [
+            {"tool_name": "search"},
+            {"tool_name": "weather"},
+        ]
+        accuracy = ToolCallingMetrics.schema_accuracy(predictions, references)
+        assert accuracy >= 0 and accuracy <= 100
+
+    def test_tool_precision(self):
+        predictions = [
+            {"tool_name": "search"},
+            {"tool_name": "weather"},
+        ]
+        references = [
+            {"tool_name": "search"},
+            {"tool_name": "search"},
+        ]
+        precision = ToolCallingMetrics.tool_precision(predictions, references)
+        assert 0 <= precision <= 100
+
+    def test_zero_division_handling(self):
+        predictions = [{"tool_name": None}]
+        references = [{"tool_name": None}]
+        # Should not raise ZeroDivisionError
+        precision = ToolCallingMetrics.tool_precision(predictions, references)
+        assert precision == 0.0
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ --cov=models --cov=data --cov=evaluation
+
+# Run specific test
+pytest tests/test_metrics.py::TestMetrics::test_schema_accuracy -v
+
+# Run tests on GPU
+pytest tests/ -v --gpu
+
+# Output:
+# tests/test_metrics.py::TestMetrics::test_schema_accuracy PASSED
+# tests/test_metrics.py::TestMetrics::test_tool_precision PASSED
+# tests/test_metrics.py::TestMetrics::test_zero_division_handling PASSED
+# ============== 3 passed in 0.45s ==============
+```
+
+---
+
